@@ -1,0 +1,96 @@
+version: "3"
+
+networks:
+ kong-net:
+  driver: bridge
+
+services:
+
+    kong-database:
+        image: postgres:9.6
+        restart: always
+        networks:
+            - kong-net
+        environment:
+            POSTGRES_USER: kong
+            POSTGRES_DB: kong
+        ports:
+            - "5432:5432"
+        healthcheck:
+            test: ["CMD", "pg_isready", "-U", "kong"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    kong-migration:
+        build: .
+        command: "kong migrations bootstrap"
+        networks:
+            - kong-net
+        restart: on-failure
+        environment:
+            KONG_PG_HOST: kong-database
+        links:
+            - kong-database
+        depends_on:
+            - kong-database
+
+    kong:
+        build: .
+        restart: always
+        networks:
+            - kong-net
+        environment:
+            KONG_LOG_LEVEL: debug
+            KONG_PG_HOST: kong-database
+            KONG_PROXY_LISTEN: 0.0.0.0:8000
+            KONG_PROXY_LISTEN_SSL: 0.0.0.0:8443
+            KONG_ADMIN_LISTEN: 0.0.0.0:8001
+            KONG_PLUGINS: oidc,oidc-consumer,key-auth,cors,request-size-limiting,bot-detection,rate-limiting,acl,response-ratelimiting,loggly
+            KONG_LUA_PACKAGE_PATH: /usr/local/oidc/?.lua;;
+            KONG_ADMIN_ACCESS_LOG: /dev/stdout
+            KONG_ADMIN_ERROR_LOG: /dev/stderr
+            KONG_PROXY_ACCESS_LOG: /dev/stdout
+            KONG_PROXY_ERROR_LOG: /dev/stderr
+        depends_on:
+            - kong-migration
+            - kong-database
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://kong:8001"]
+            interval: 5s
+            timeout: 2s
+            retries: 15
+        ports:
+            - "8001:8001"
+            - "8000:8000"
+
+    konga-prepare:
+        image: konga_konga
+        command: "-c prepare -a postgres -u postgresql://kong@kong-database:5432/konga_db"
+        networks:
+          - kong-net
+        restart: on-failure
+        links:
+          - kong-database
+        depends_on:
+          - kong-database
+
+    konga:
+        image: konga_konga
+        restart: always
+        networks:
+            - kong-net
+        environment:
+            NODE_ENV: development
+            KONG_URL: "http://kong:8001" #"$KONG_URL"
+            KONGA_ADMIN_USERNAME: "$KONGA_ADMIN_USERNAME"
+            KONGA_ADMIN_EMAIL: "$KONGA_ADMIN_EMAIL"
+            KONGA_ADMIN_FIRSTNAME: "$KONGA_ADMIN_FIRSTNAME"
+            KONGA_ADMIN_LASTNAME: "$KONGA_ADMIN_LASTNAME"
+            KONGA_ADMIN_PASSWORD: "$KONGA_ADMIN_PASSWORD"
+            KONGA_SEED_KONG_NODE_DATA_SOURCE_FILE: /app/kong_node.data
+            KONGA_SEED_USER_DATA_SOURCE_FILE: /app/userdb.data
+        depends_on:
+            - kong
+        ports:
+            - "1337:1337"
