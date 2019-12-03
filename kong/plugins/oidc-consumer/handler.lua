@@ -10,21 +10,50 @@ local ngx_set_header = ngx.req.set_header
 local create_consumer = false
 local create_key = false
 
-OidcConsumerHandler.PRIORITY = 900
+-- oidc 1000, acl 950
+OidcConsumerHandler.PRIORITY = 999
 
 
 function OidcConsumerHandler:new()
   OidcConsumerHandler.super.new(self, "oidc-consumer")
 end
 
-local function set_consumer(consumer)
+local function set_consumer(consumer, groups)
   ngx_set_header(constants.HEADERS.CONSUMER_ID, consumer.id)
   local apikey = ngx.encode_base64(consumer.custom_id)
   ngx_set_header(constants.HEADERS.CONSUMER_CUSTOM_ID, apikey)
   ngx_set_header(constants.HEADERS.CONSUMER_USERNAME, consumer.username)
   ngx.ctx.authenticated_consumer = consumer
   ngx.ctx.authenticated_credential = { id = "oidc", username = consumer.username }
+  ngx.ctx.authenticated_groups = groups
   ngx_set_header(constants.HEADERS.ANONYMOUS, nil) -- in case of auth plugins concatenation
+end
+
+local function load_groups_into_memory(consumer_pk)
+  local groups = {}
+  local len    = 0
+
+  for row, err in singletons.db.acls:each_for_consumer(consumer_pk) do
+    if err then
+      return nil, err
+    end
+    len = len + 1
+    groups[len] = row
+  end
+
+  return groups
+end
+
+local function get_consumer_groups_raw(consumer_id)
+  local cache_key = singletons.db.acls:cache_key(consumer_id)
+  local raw_groups, err = singletons.cache:get(cache_key, nil,
+                                         load_groups_into_memory,
+                                         { id = consumer_id })
+  if err then
+    return nil, err
+  end
+
+  return raw_groups or EMPTY
 end
 
 local function load_consumer_by_username(consumer_username)
@@ -95,7 +124,13 @@ local function handleOidcHeader(oidcUserInfo, config, ngx)
 
     if consumer then
       ngx.log(ngx.DEBUG, "OidcConsumerHandler Setting consumer found")
-      set_consumer(consumer)
+      local groups, err = get_consumer_groups_raw(consumer.id)
+
+      if err then
+        return responses.send_HTTP_INTERNAL_SERVER_ERROR(err)
+      end
+
+      set_consumer(consumer, groups)
     end
   else
     ngx.log(ngx.DEBUG, "OidcConsumerHandler No username field found on decoded oidc userInfo header")
