@@ -1,4 +1,4 @@
-FROM kong:1.4.0-alpine
+FROM kong:1.4.2-alpine
 
 RUN luarocks install kong-oidc
 RUN luarocks install kong-oidc-consumer
