@@ -127,7 +127,7 @@ local function handleOidcHeader(oidcUserInfo, config, ngx)
       local groups, err = get_consumer_groups_raw(consumer.id)
 
       if err then
-        return responses.send_HTTP_INTERNAL_SERVER_ERROR(err)
+        return kong.response.send_HTTP_INTERNAL_SERVER_ERROR(err)
       end
 
       set_consumer(consumer, groups)
