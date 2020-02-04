@@ -1,5 +1,4 @@
 local BasePlugin = require "kong.plugins.base_plugin"
-local singletons = require "kong.singletons"
 local kong_utils = require "kong.tools.utils"
 local constants = require "kong.constants"
 
@@ -33,7 +32,7 @@ local function load_groups_into_memory(consumer_pk)
   local groups = {}
   local len    = 0
 
-  for row, err in singletons.db.acls:each_for_consumer(consumer_pk) do
+  for row, err in kong.db.acls:each_for_consumer(consumer_pk) do
     if err then
       return nil, err
     end
@@ -45,8 +44,8 @@ local function load_groups_into_memory(consumer_pk)
 end
 
 local function get_consumer_groups_raw(consumer_id)
-  local cache_key = singletons.db.acls:cache_key(consumer_id)
-  local raw_groups, err = singletons.cache:get(cache_key, nil,
+  local cache_key = kong.db.acls:cache_key(consumer_id)
+  local raw_groups, err = kong.cache:get(cache_key, nil,
                                          load_groups_into_memory,
                                          { id = consumer_id })
   if err then
@@ -57,7 +56,7 @@ local function get_consumer_groups_raw(consumer_id)
 end
 
 local function load_consumer_by_username(consumer_username)
-  local result, err = singletons.db.consumers:select_by_username(consumer_username)
+  local result, err = kong.db.consumers:select_by_username(consumer_username)
   if not result then
     if not err then
       -- create consumer when not found in cache and no error occured
@@ -65,7 +64,7 @@ local function load_consumer_by_username(consumer_username)
       ngx.log(ngx.DEBUG, err)
 
       if create_consumer then
-        consumer = singletons.db.consumers:insert {
+        consumer = kong.db.consumers:insert {
           id = kong_utils.uuid(),
           username = consumer_username
         }
@@ -77,7 +76,7 @@ local function load_consumer_by_username(consumer_username)
             if err then
               ngx.log(ngx.DEBUG, "Failed to create key for new user")
             else
-              consumer, err = singletons.db.consumers:update(
+              consumer, err = kong.db.consumers:update(
               { id = consumer.id }, { custom_id = key_credential.key }
               )
               if err then
@@ -113,8 +112,8 @@ local function handleOidcHeader(oidcUserInfo, config, ngx)
   local usernameForLookup = userInfo[usernameField]
   if usernameForLookup then
     -- get consumer by the username if possible
-    local consumer_cache_key = singletons.db.consumers:cache_key(usernameForLookup)
-    local consumer, err = singletons.cache:get(consumer_cache_key, nil,
+    local consumer_cache_key = kong.db.consumers:cache_key(usernameForLookup)
+    local consumer, err = kong.cache:get(consumer_cache_key, nil,
                                                 load_consumer_by_username,
                                                 usernameForLookup, true)
 
