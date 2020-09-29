@@ -9,4 +9,4 @@ COPY kong_oidc_schema.lua /usr/local/share/lua/5.1/kong/plugins/oidc/schema.lua
 COPY kong_oidc_utils.lua /usr/local/share/lua/5.1/kong/plugins/oidc/utils.lua
 
 #CMD ["kong", "migrations", "bootstrap"]
-#CMD ["sh", "-c", "kong migrations up && kong migrations finish"]
+CMD ["sh", "-c", "kong migrations up && kong migrations finish && kong docker-start"]
