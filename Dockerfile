@@ -1,4 +1,4 @@
-FROM kong:1.4.2-alpine
+FROM kong:2.1.4-alpine
 
 RUN apk add --no-cache git
 RUN luarocks install kong-oidc
