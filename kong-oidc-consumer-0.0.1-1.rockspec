@@ -1,8 +1,8 @@
 package = "kong-oidc-consumer"
 version = "0.0.1-1"
 source = {
-    url = "git://github.com/vl4d/kong-oidc-consumer",
-    tag = "v0.0.1",
+    url = "git://github.com/tschaume/kong-oidc-consumer",
+    branch = "release",
     dir = "kong-oidc-consumer"
 }
 description = {
